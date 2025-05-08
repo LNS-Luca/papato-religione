@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Il Vaticano: Elenco dei Papi</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <!-- Chart.js e plugin non sono più necessari per questa versione semplificata delle statistiche -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        .header {
+            background-color: #8B0000; /* Rosso Cardinale */
+            color: #FFD700; /* Oro Vaticano */
+            padding: 1rem 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .vatican-gold { color: #FFD700; }
+        .vatican-red { color: #8B0000; }
+        .page-title {
+            font-weight: 700;
+            font-size: 2rem;
+            cursor: pointer;
+        }
+        .nav-item .nav-link {
+            color: white;
+            font-weight: 500;
+            padding: 0.6rem 1.1rem;
+            border-radius: 5px;
+            transition: background-color 0.25s ease-in-out, transform 0.1s ease;
+        }
+        .nav-item .nav-link:hover, .nav-item .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+            overflow: hidden;
+        }
+        .card-header {
+            background-color: #e9ecef;
+            font-size: 1.1rem;
+            font-weight: 600;
+            padding: 0.8rem 1.2rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .btn-vatican {
+            background-color: #8B0000;
+            color: white;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            font-weight: 500;
+            border-radius: 5px;
+        }
+        .btn-vatican:hover { background-color: #700000; }
+        .btn-gold {
+            background-color: #FFD700;
+            color: #333;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            font-weight: 500;
+            border-radius: 5px;
+        }
+        .btn-gold:hover { background-color: #e6c300; }
+        .footer {
+            background-color: #343a40;
+            color: #f8f9fa;
+            padding: 30px 0;
+            margin-top: 50px;
+            font-size: 0.9rem;
+        }
+        .table th {
+            background-color: #8B0000;
+            color: white;
+            font-weight: 600;
+        }
+        .pagination .page-item.active .page-link {
+            background-color: #8B0000;
+            border-color: #8B0000;
+        }
+        .pagination .page-link { color: #8B0000; }
+        .loading {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 250px;
+            font-size: 1.25rem;
+        }
+        .spinner-border { width: 3rem; height: 3rem; }
+        .stat-number {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #8B0000;
+        }
+        .fade-in { animation: fadeInAnimation 0.6s ease-out; }
+        @keyframes fadeInAnimation { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Stili per la lista delle nazionalità */
+        .nationality-list-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        .nationality-list-item:last-child {
+            border-bottom: none;
+        }
+        .nationality-name {
+            font-weight: 500;
+        }
+        .nationality-details {
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Database dei papi con l'aggiunta di Papa Leone XIV
+        const popeData = [
+            // ... (tutti i papi da 1 a 266, come nella versione precedente) ...
+            { id: 1, nome: "San Pietro", nazionalita: "Palestina", periodo: "33-67" },
+            { id: 2, nome: "San Lino", nazionalita: "Italia", periodo: "67-76" },
+            { id: 3, nome: "Sant'Anacleto (Cleto)", nazionalita: "Italia", periodo: "76-88" },
+            { id: 4, nome: "San Clemente I", nazionalita: "Italia", periodo: "88-97" },
+            { id: 5, nome: "Sant'Evaristo", nazionalita: "Grecia", periodo: "97-105" },
+            { id: 6, nome: "Sant'Alessandro I", nazionalita: "Italia", periodo: "105-115" },
+            { id: 7, nome: "San Sisto I", nazionalita: "Italia", periodo: "115-125" },
+            { id: 8, nome: "San Telesforo", nazionalita: "Grecia", periodo: "125-136" },
+            { id: 9, nome: "Sant'Igino", nazionalita: "Grecia", periodo: "136-140" },
+            { id: 10, nome: "San Pio I", nazionalita: "Italia", periodo: "140-155" },
+            { id: 11, nome: "Sant'Aniceto", nazionalita: "Siria", periodo: "155-166" },
+            { id: 12, nome: "San Sotero", nazionalita: "Italia", periodo: "166-175" },
+            { id: 13, nome: "Sant'Eleuterio", nazionalita: "Grecia", periodo: "175-189" },
+            { id: 14, nome: "San Vittore I", nazionalita: "Africa", periodo: "189-199" },
+            { id: 15, nome: "San Zefirino", nazionalita: "Italia", periodo: "199-217" },
+            { id: 16, nome: "San Callisto I", nazionalita: "Italia", periodo: "217-222" },
+            { id: 17, nome: "Sant'Urbano I", nazionalita: "Italia", periodo: "222-230" },
+            { id: 18, nome: "San Ponziano", nazionalita: "Italia", periodo: "230-235" },
+            { id: 19, nome: "Sant'Antero", nazionalita: "Grecia", periodo: "235-236" },
+            { id: 20, nome: "San Fabiano", nazionalita: "Italia", periodo: "236-250" },
+            { id: 21, nome: "San Cornelio", nazionalita: "Italia", periodo: "251-253" },
+            { id: 22, nome: "San Lucio I", nazionalita: "Italia", periodo: "253-254" },
+            { id: 23, nome: "Santo Stefano I", nazionalita: "Italia", periodo: "254-257" },
+            { id: 24, nome: "San Sisto II", nazionalita: "Grecia", periodo: "257-258" },
+            { id: 25, nome: "San Dionisio", nazionalita: "Italia", periodo: "259-268" },
+            { id: 26, nome: "San Felice I", nazionalita: "Italia", periodo: "269-274" },
+            { id: 27, nome: "Sant'Eutichiano", nazionalita: "Italia", periodo: "275-283" },
+            { id: 28, nome: "San Caio", nazionalita: "Dalmazia", periodo: "283-296" },
+            { id: 29, nome: "San Marcellino", nazionalita: "Italia", periodo: "296-304" },
+            { id: 30, nome: "San Marcello I", nazionalita: "Italia", periodo: "308-309" },
+            { id: 31, nome: "Sant'Eusebio", nazionalita: "Grecia", periodo: "309 (o 310)" },
+            { id: 32, nome: "San Milziade", nazionalita: "Africa", periodo: "311-314" },
+            { id: 33, nome: "San Silvestro I", nazionalita: "Italia", periodo: "314-335" },
+            { id: 34, nome: "San Marco", nazionalita: "Italia", periodo: "336" },
+            { id: 35, nome: "San Giulio I", nazionalita: "Italia", periodo: "337-352" },
+            { id: 36, nome: "Liberio", nazionalita: "Italia", periodo: "352-366" },
+            { id: 37, nome: "San Damaso I", nazionalita: "Spagna", periodo: "366-384" },
+            { id: 38, nome: "San Siricio", nazionalita: "Italia", periodo: "384-399" },
+            { id: 39, nome: "Sant'Anastasio I", nazionalita: "Italia", periodo: "399-401" },
+            { id: 40, nome: "Sant'Innocenzo I", nazionalita: "Italia", periodo: "401-417" },
+            { id: 41, nome: "San Zosimo", nazionalita: "Grecia", periodo: "417-418" },
+            { id: 42, nome: "San Bonifacio I", nazionalita: "Italia", periodo: "418-422" },
+            { id: 43, nome: "San Celestino I", nazionalita: "Italia", periodo: "422-432" },
+            { id: 44, nome: "San Sisto III", nazionalita: "Italia", periodo: "432-440" },
+            { id: 45, nome: "San Leone I (Magno)", nazionalita: "Italia", periodo: "440-461" },
+            { id: 46, nome: "Sant'Ilario", nazionalita: "Italia", periodo: "461-468" },
+            { id: 47, nome: "San Simplicio", nazionalita: "Italia", periodo: "468-483" },
+            { id: 48, nome: "San Felice III (II)", nazionalita: "Italia", periodo: "483-492" },
+            { id: 49, nome: "San Gelasio I", nazionalita: "Africa", periodo: "492-496" },
+            { id: 50, nome: "Sant'Anastasio II", nazionalita: "Italia", periodo: "496-498" },
+            { id: 51, nome: "San Simmaco", nazionalita: "Italia", periodo: "498-514" },
+            { id: 52, nome: "Sant'Ormisda", nazionalita: "Italia", periodo: "514-523" },
+            { id: 53, nome: "San Giovanni I", nazionalita: "Italia", periodo: "523-526" },
+            { id: 54, nome: "San Felice IV (III)", nazionalita: "Italia", periodo: "526-530" },
+            { id: 55, nome: "Bonifacio II", nazionalita: "Italia", periodo: "530-532" },
+            { id: 56, nome: "Giovanni II", nazionalita: "Italia", periodo: "533-535" },
+            { id: 57, nome: "Sant'Agapito I", nazionalita: "Italia", periodo: "535-536" },
+            { id: 58, nome: "San Silverio", nazionalita: "Italia", periodo: "536-537" },
+            { id: 59, nome: "Vigilio", nazionalita: "Italia", periodo: "537-555" },
+            { id: 60, nome: "Pelagio I", nazionalita: "Italia", periodo: "556-561" },
+            { id: 61, nome: "Giovanni III", nazionalita: "Italia", periodo: "561-574" },
+            { id: 62, nome: "Benedetto I", nazionalita: "Italia", periodo: "575-579" },
+            { id: 63, nome: "Pelagio II", nazionalita: "Italia", periodo: "579-590" },
+            { id: 64, nome: "San Gregorio I (Magno)", nazionalita: "Italia", periodo: "590-604" },
+            { id: 65, nome: "Sabiniano", nazionalita: "Italia", periodo: "604-606" },
+            { id: 66, nome: "Bonifacio III", nazionalita: "Italia", periodo: "607" },
+            { id: 67, nome: "San Bonifacio IV", nazionalita: "Italia", periodo: "608-615" },
+            { id: 68, nome: "Sant'Adeodato I", nazionalita: "Italia", periodo: "615-618" },
+            { id: 69, nome: "Bonifacio V", nazionalita: "Italia", periodo: "619-625" },
+            { id: 70, nome: "Onorio I", nazionalita: "Italia", periodo: "625-638" },
+            { id: 71, nome: "Severino", nazionalita: "Italia", periodo: "640" },
+            { id: 72, nome: "Giovanni IV", nazionalita: "Dalmazia", periodo: "640-642" },
+            { id: 73, nome: "Teodoro I", nazionalita: "Grecia", periodo: "642-649" },
+            { id: 74, nome: "San Martino I", nazionalita: "Italia", periodo: "649-655" },
+            { id: 75, nome: "Sant'Eugenio I", nazionalita: "Italia", periodo: "654-657" },
+            { id: 76, nome: "San Vitaliano", nazionalita: "Italia", periodo: "657-672" },
+            { id: 77, nome: "Adeodato II", nazionalita: "Italia", periodo: "672-676" },
+            { id: 78, nome: "Dono", nazionalita: "Italia", periodo: "676-678" },
+            { id: 79, nome: "Sant'Agatone", nazionalita: "Italia", periodo: "678-681" },
+            { id: 80, nome: "San Leone II", nazionalita: "Italia", periodo: "682-683" },
+            { id: 81, nome: "San Benedetto II", nazionalita: "Italia", periodo: "684-685" },
+            { id: 82, nome: "Giovanni V", nazionalita: "Siria", periodo: "685-686" },
+            { id: 83, nome: "Conone", nazionalita: "Siria", periodo: "686-687" },
+            { id: 84, nome: "San Sergio I", nazionalita: "Siria", periodo: "687-701" },
+            { id: 85, nome: "Giovanni VI", nazionalita: "Grecia", periodo: "701-705" },
+            { id: 86, nome: "Giovanni VII", nazionalita: "Grecia", periodo: "705-707" },
+            { id: 87, nome: "Sisinnio", nazionalita: "Siria", periodo: "708" },
+            { id: 88, nome: "Costantino", nazionalita: "Siria", periodo: "708-715" },
+            { id: 89, nome: "San Gregorio II", nazionalita: "Italia", periodo: "715-731" },
+            { id: 90, nome: "San Gregorio III", nazionalita: "Siria", periodo: "731-741" },
+            { id: 91, nome: "San Zaccaria", nazionalita: "Grecia", periodo: "741-752" },
+            { id: 92, nome: "Stefano II", nazionalita: "Italia", periodo: "752-757" },
+            { id: 93, nome: "San Paolo I", nazionalita: "Italia", periodo: "757-767" },
+            { id: 94, nome: "Stefano III", nazionalita: "Italia", periodo: "768-772" },
+            { id: 95, nome: "Adriano I", nazionalita: "Italia", periodo: "772-795" },
+            { id: 96, nome: "San Leone III", nazionalita: "Italia", periodo: "795-816" },
+            { id: 97, nome: "Stefano IV", nazionalita: "Italia", periodo: "816-817" },
+            { id: 98, nome: "San Pasquale I", nazionalita: "Italia", periodo: "817-824" },
+            { id: 99, nome: "Eugenio II", nazionalita: "Italia", periodo: "824-827" },
+            { id: 100, nome: "Valentino", nazionalita: "Italia", periodo: "827" },
+            { id: 101, nome: "Gregorio IV", nazionalita: "Italia", periodo: "827-844" },
+            { id: 102, nome: "Sergio II", nazionalita: "Italia", periodo: "844-847" },
+            { id: 103, nome: "San Leone IV", nazionalita: "Italia", periodo: "847-855" },
+            { id: 104, nome: "Benedetto III", nazionalita: "Italia", periodo: "855-858" },
+            { id: 105, nome: "San Nicola I (Magno)", nazionalita: "Italia", periodo: "858-867" },
+            { id: 106, nome: "Adriano II", nazionalita: "Italia", periodo: "867-872" },
+            { id: 107, nome: "Giovanni VIII", nazionalita: "Italia", periodo: "872-882" },
+            { id: 108, nome: "Marino I", nazionalita: "Italia", periodo: "882-884" },
+            { id: 109, nome: "Sant'Adriano III", nazionalita: "Italia", periodo: "884-885" },
+            { id: 110, nome: "Stefano V", nazionalita: "Italia", periodo: "885-891" },
+            { id: 111, nome: "Formoso", nazionalita: "Italia", periodo: "891-896" },
+            { id: 112, nome: "Bonifacio VI", nazionalita: "Italia", periodo: "896" },
+            { id: 113, nome: "Stefano VI", nazionalita: "Italia", periodo: "896-897" },
+            { id: 114, nome: "Romano", nazionalita: "Italia", periodo: "897" },
+            { id: 115, nome: "Teodoro II", nazionalita: "Italia", periodo: "897" },
+            { id: 116, nome: "Giovanni IX", nazionalita: "Italia", periodo: "898-900" },
+            { id: 117, nome: "Benedetto IV", nazionalita: "Italia", periodo: "900-903" },
+            { id: 118, nome: "Leone V", nazionalita: "Italia", periodo: "903" },
+            { id: 119, nome: "Sergio III", nazionalita: "Italia", periodo: "904-911" },
+            { id: 120, nome: "Anastasio III", nazionalita: "Italia", periodo: "911-913" },
+            { id: 121, nome: "Lando", nazionalita: "Italia", periodo: "913-914" },
+            { id: 122, nome: "Giovanni X", nazionalita: "Italia", periodo: "914-928" },
+            { id: 123, nome: "Leone VI", nazionalita: "Italia", periodo: "928" },
+            { id: 124, nome: "Stefano VII", nazionalita: "Italia", periodo: "928-931" },
+            { id: 125, nome: "Giovanni XI", nazionalita: "Italia", periodo: "931-935" },
+            { id: 126, nome: "Leone VII", nazionalita: "Italia", periodo: "936-939" },
+            { id: 127, nome: "Stefano VIII", nazionalita: "Germania", periodo: "939-942" },
+            { id: 128, nome: "Marino II", nazionalita: "Italia", periodo: "942-946" },
+            { id: 129, nome: "Agapito II", nazionalita: "Italia", periodo: "946-955" },
+            { id: 130, nome: "Giovanni XII", nazionalita: "Italia", periodo: "955-964" },
+            { id: 131, nome: "Leone VIII", nazionalita: "Italia", periodo: "963-965" },
+            { id: 132, nome: "Benedetto V", nazionalita: "Italia", periodo: "964" },
+            { id: 133, nome: "Giovanni XIII", nazionalita: "Italia", periodo: "965-972" },
+            { id: 134, nome: "Benedetto VI", nazionalita: "Italia", periodo: "973-974" },
+            { id: 135, nome: "Benedetto VII", nazionalita: "Italia", periodo: "974-983" },
+            { id: 136, nome: "Giovanni XIV", nazionalita: "Italia", periodo: "983-984" },
+            { id: 137, nome: "Giovanni XV", nazionalita: "Italia", periodo: "985-996" },
+            { id: 138, nome: "Gregorio V", nazionalita: "Germania", periodo: "996-999" },
+            { id: 139, nome: "Silvestro II", nazionalita: "Francia", periodo: "999-1003" },
+            { id: 140, nome: "Giovanni XVII", nazionalita: "Italia", periodo: "1003" },
+            { id: 141, nome: "Giovanni XVIII", nazionalita: "Italia", periodo: "1003-1009" },
+            { id: 142, nome: "Sergio IV", nazionalita: "Italia", periodo: "1009-1012" },
+            { id: 143, nome: "Benedetto VIII", nazionalita: "Italia", periodo: "1012-1024" },
+            { id: 144, nome: "Giovanni XIX", nazionalita: "Italia", periodo: "1024-1032" },
+            { id: 145, nome: "Benedetto IX", nazionalita: "Italia", periodo: "1032-1044" },
+            { id: 146, nome: "Silvestro III", nazionalita: "Italia", periodo: "1045" },
+            { id: 147, nome: "Benedetto IX (2° volta)", nazionalita: "Italia", periodo: "1045" },
+            { id: 148, nome: "Gregorio VI", nazionalita: "Italia", periodo: "1045-1046" },
+            { id: 149, nome: "Clemente II", nazionalita: "Germania", periodo: "1046-1047" },
+            { id: 150, nome: "Benedetto IX (3° volta)", nazionalita: "Italia", periodo: "1047-1048" },
+            { id: 151, nome: "Damaso II", nazionalita: "Germania", periodo: "1048" },
+            { id: 152, nome: "San Leone IX", nazionalita: "Germania", periodo: "1049-1054" },
+            { id: 153, nome: "Vittore II", nazionalita: "Germania", periodo: "1055-1057" },
+            { id: 154, nome: "Stefano IX", nazionalita: "Germania", periodo: "1057-1058" },
+            { id: 155, nome: "Niccolò II", nazionalita: "Francia", periodo: "1059-1061" },
+            { id: 156, nome: "Alessandro II", nazionalita: "Italia", periodo: "1061-1073" },
+            { id: 157, nome: "San Gregorio VII", nazionalita: "Italia", periodo: "1073-1085" },
+            { id: 158, nome: "Beato Vittore III", nazionalita: "Italia", periodo: "1086-1087" },
+            { id: 159, nome: "Beato Urbano II", nazionalita: "Francia", periodo: "1088-1099" },
+            { id: 160, nome: "Pasquale II", nazionalita: "Italia", periodo: "1099-1118" },
+            { id: 161, nome: "Gelasio II", nazionalita: "Italia", periodo: "1118-1119" },
+            { id: 162, nome: "Callisto II", nazionalita: "Francia", periodo: "1119-1124" },
+            { id: 163, nome: "Onorio II", nazionalita: "Italia", periodo: "1124-1130" },
+            { id: 164, nome: "Innocenzo II", nazionalita: "Italia", periodo: "1130-1143" },
+            { id: 165, nome: "Celestino II", nazionalita: "Italia", periodo: "1143-1144" },
+            { id: 166, nome: "Lucio II", nazionalita: "Italia", periodo: "1144-1145" },
+            { id: 167, nome: "Beato Eugenio III", nazionalita: "Italia", periodo: "1145-1153" },
+            { id: 168, nome: "Anastasio IV", nazionalita: "Italia", periodo: "1153-1154" },
+            { id: 169, nome: "Adriano IV", nazionalita: "Inghilterra", periodo: "1154-1159" },
+            { id: 170, nome: "Alessandro III", nazionalita: "Italia", periodo: "1159-1181" },
+            { id: 171, nome: "Lucio III", nazionalita: "Italia", periodo: "1181-1185" },
+            { id: 172, nome: "Urbano III", nazionalita: "Italia", periodo: "1185-1187" },
+            { id: 173, nome: "Gregorio VIII", nazionalita: "Italia", periodo: "1187" },
+            { id: 174, nome: "Clemente III", nazionalita: "Italia", periodo: "1187-1191" },
+            { id: 175, nome: "Celestino III", nazionalita: "Italia", periodo: "1191-1198" },
+            { id: 176, nome: "Innocenzo III", nazionalita: "Italia", periodo: "1198-1216" },
+            { id: 177, nome: "Onorio III", nazionalita: "Italia", periodo: "1216-1227" },
+            { id: 178, nome: "Gregorio IX", nazionalita: "Italia", periodo: "1227-1241" },
+            { id: 179, nome: "Celestino IV", nazionalita: "Italia", periodo: "1241" },
+            { id: 180, nome: "Innocenzo IV", nazionalita: "Italia", periodo: "1243-1254" },
+            { id: 181, nome: "Alessandro IV", nazionalita: "Italia", periodo: "1254-1261" },
+            { id: 182, nome: "Urbano IV", nazionalita: "Francia", periodo: "1261-1264" },
+            { id: 183, nome: "Clemente IV", nazionalita: "Francia", periodo: "1265-1268" },
+            { id: 184, nome: "Beato Gregorio X", nazionalita: "Italia", periodo: "1271-1276" },
+            { id: 185, nome: "Beato Innocenzo V", nazionalita: "Francia", periodo: "1276" },
+            { id: 186, nome: "Adriano V", nazionalita: "Italia", periodo: "1276" },
+            { id: 187, nome: "Giovanni XXI", nazionalita: "Portogallo", periodo: "1276-1277" },
+            { id: 188, nome: "Niccolò III", nazionalita: "Italia", periodo: "1277-1280" },
+            { id: 189, nome: "Martino IV", nazionalita: "Francia", periodo: "1281-1285" },
+            { id: 190, nome: "Onorio IV", nazionalita: "Italia", periodo: "1285-1287" },
+            { id: 191, nome: "Niccolò IV", nazionalita: "Italia", periodo: "1288-1292" },
+            { id: 192, nome: "San Celestino V", nazionalita: "Italia", periodo: "1294" },
+            { id: 193, nome: "Bonifacio VIII", nazionalita: "Italia", periodo: "1294-1303" },
+            { id: 194, nome: "Beato Benedetto XI", nazionalita: "Italia", periodo: "1303-1304" },
+            { id: 195, nome: "Clemente V", nazionalita: "Francia", periodo: "1305-1314" },
+            { id: 196, nome: "Giovanni XXII", nazionalita: "Francia", periodo: "1316-1334" },
+            { id: 197, nome: "Benedetto XII", nazionalita: "Francia", periodo: "1334-1342" },
+            { id: 198, nome: "Clemente VI", nazionalita: "Francia", periodo: "1342-1352" },
+            { id: 199, nome: "Innocenzo VI", nazionalita: "Francia", periodo: "1352-1362" },
+            { id: 200, nome: "Beato Urbano V", nazionalita: "Francia", periodo: "1362-1370" },
+            { id: 201, nome: "Gregorio XI", nazionalita: "Francia", periodo: "1370-1378" },
+            { id: 202, nome: "Urbano VI", nazionalita: "Italia", periodo: "1378-1389" },
+            { id: 203, nome: "Bonifacio IX", nazionalita: "Italia", periodo: "1389-1404" },
+            { id: 204, nome: "Innocenzo VII", nazionalita: "Italia", periodo: "1404-1406" },
+            { id: 205, nome: "Gregorio XII", nazionalita: "Italia", periodo: "1406-1415" },
+            { id: 206, nome: "Martino V", nazionalita: "Italia", periodo: "1417-1431" },
+            { id: 207, nome: "Eugenio IV", nazionalita: "Italia", periodo: "1431-1447" },
+            { id: 208, nome: "Niccolò V", nazionalita: "Italia", periodo: "1447-1455" },
+            { id: 209, nome: "Callisto III", nazionalita: "Spagna", periodo: "1455-1458" },
+            { id: 210, nome: "Pio II", nazionalita: "Italia", periodo: "1458-1464" },
+            { id: 211, nome: "Paolo II", nazionalita: "Italia", periodo: "1464-1471" },
+            { id: 212, nome: "Sisto IV", nazionalita: "Italia", periodo: "1471-1484" },
+            { id: 213, nome: "Innocenzo VIII", nazionalita: "Italia", periodo: "1484-1492" },
+            { id: 214, nome: "Alessandro VI", nazionalita: "Spagna", periodo: "1492-1503" },
+            { id: 215, nome: "Pio III", nazionalita: "Italia", periodo: "1503" },
+            { id: 216, nome: "Giulio II", nazionalita: "Italia", periodo: "1503-1513" },
+            { id: 217, nome: "Leone X", nazionalita: "Italia", periodo: "1513-1521" },
+            { id: 218, nome: "Adriano VI", nazionalita: "Paesi Bassi", periodo: "1522-1523" },
+            { id: 219, nome: "Clemente VII", nazionalita: "Italia", periodo: "1523-1534" },
+            { id: 220, nome: "Paolo III", nazionalita: "Italia", periodo: "1534-1549" },
+            { id: 221, nome: "Giulio III", nazionalita: "Italia", periodo: "1550-1555" },
+            { id: 222, nome: "Marcello II", nazionalita: "Italia", periodo: "1555" },
+            { id: 223, nome: "Paolo IV", nazionalita: "Italia", periodo: "1555-1559" },
+            { id: 224, nome: "Pio IV", nazionalita: "Italia", periodo: "1559-1565" },
+            { id: 225, nome: "San Pio V", nazionalita: "Italia", periodo: "1566-1572" },
+            { id: 226, nome: "Gregorio XIII", nazionalita: "Italia", periodo: "1572-1585" },
+            { id: 227, nome: "Sisto V", nazionalita: "Italia", periodo: "1585-1590" },
+            { id: 228, nome: "Urbano VII", nazionalita: "Italia", periodo: "1590" },
+            { id: 229, nome: "Gregorio XIV", nazionalita: "Italia", periodo: "1590-1591" },
+            { id: 230, nome: "Innocenzo IX", nazionalita: "Italia", periodo: "1591" },
+            { id: 231, nome: "Clemente VIII", nazionalita: "Italia", periodo: "1592-1605" },
+            { id: 232, nome: "Leone XI", nazionalita: "Italia", periodo: "1605" },
+            { id: 233, nome: "Paolo V", nazionalita: "Italia", periodo: "1605-1621" },
+            { id: 234, nome: "Gregorio XV", nazionalita: "Italia", periodo: "1621-1623" },
+            { id: 235, nome: "Urbano VIII", nazionalita: "Italia", periodo: "1623-1644" },
+            { id: 236, nome: "Innocenzo X", nazionalita: "Italia", periodo: "1644-1655" },
+            { id: 237, nome: "Alessandro VII", nazionalita: "Italia", periodo: "1655-1667" },
+            { id: 238, nome: "Clemente IX", nazionalita: "Italia", periodo: "1667-1669" },
+            { id: 239, nome: "Clemente X", nazionalita: "Italia", periodo: "1670-1676" },
+            { id: 240, nome: "Beato Innocenzo XI", nazionalita: "Italia", periodo: "1676-1689" },
+            { id: 241, nome: "Alessandro VIII", nazionalita: "Italia", periodo: "1689-1691" },
+            { id: 242, nome: "Innocenzo XII", nazionalita: "Italia", periodo: "1691-1700" },
+            { id: 243, nome: "Clemente XI", nazionalita: "Italia", periodo: "1700-1721" },
+            { id: 244, nome: "Innocenzo XIII", nazionalita: "Italia", periodo: "1721-1724" },
+            { id: 245, nome: "Benedetto XIII", nazionalita: "Italia", periodo: "1724-1730" },
+            { id: 246, nome: "Clemente XII", nazionalita: "Italia", periodo: "1730-1740" },
+            { id: 247, nome: "Benedetto XIV", nazionalita: "Italia", periodo: "1740-1758" },
+            { id: 248, nome: "Clemente XIII", nazionalita: "Italia", periodo: "1758-1769" },
+            { id: 249, nome: "Clemente XIV", nazionalita: "Italia", periodo: "1769-1774" },
+            { id: 250, nome: "Pio VI", nazionalita: "Italia", periodo: "1775-1799" },
+            { id: 251, nome: "Pio VII", nazionalita: "Italia", periodo: "1800-1823" },
+            { id: 252, nome: "Leone XII", nazionalita: "Italia", periodo: "1823-1829" },
+            { id: 253, nome: "Pio VIII", nazionalita: "Italia", periodo: "1829-1830" },
+            { id: 254, nome: "Gregorio XVI", nazionalita: "Italia", periodo: "1831-1846" },
+            { id: 255, nome: "Beato Pio IX", nazionalita: "Italia", periodo: "1846-1878" },
+            { id: 256, nome: "Leone XIII", nazionalita: "Italia", periodo: "1878-1903" },
+            { id: 257, nome: "San Pio X", nazionalita: "Italia", periodo: "1903-1914" },
+            { id: 258, nome: "Benedetto XV", nazionalita: "Italia", periodo: "1914-1922" },
+            { id: 259, nome: "Pio XI", nazionalita: "Italia", periodo: "1922-1939" },
+            { id: 260, nome: "Pio XII", nazionalita: "Italia", periodo: "1939-1958" },
+            { id: 261, nome: "San Giovanni XXIII", nazionalita: "Italia", periodo: "1958-1963" },
+            { id: 262, nome: "San Paolo VI", nazionalita: "Italia", periodo: "1963-1978" },
+            { id: 263, nome: "Giovanni Paolo I", nazionalita: "Italia", periodo: "1978" },
+            { id: 264, nome: "San Giovanni Paolo II", nazionalita: "Polonia", periodo: "1978-2005" },
+            { id: 265, nome: "Benedetto XVI", nazionalita: "Germania", periodo: "2005-2013" },
+            { id: 266, nome: "Francesco", nazionalita: "Argentina", periodo: "2013-2025" },
+            { id: 267, nome: "Leone XIV", nazionalita: "Stati Uniti", periodo: "2025-presente" }
+        ];
+
+        // Componente principale App (invariato rispetto alla versione precedente)
+        const App = () => {
+            const [page, setPage] = useState('home');
+            const [gameConfig, setGameConfig] = useState(null);
+            
+            const navigateTo = (newPage, config = null) => {
+                setPage(newPage);
+                if (config) setGameConfig(config);
+                window.scrollTo(0, 0);
+            };
+            
+            const renderPage = () => {
+                switch(page) {
+                    case 'home': return <HomePage navigateTo={navigateTo} />;
+                    case 'list': return <PopeListPage navigateTo={navigateTo} />;
+                    case 'stats': return <StatsPage navigateTo={navigateTo} />;
+                    // Per brevità, le pagine del gioco sono state semplificate/omesse in questa versione
+                    // Puoi reintegrare le versioni complete se necessario
+                    case 'game-config': return <GameConfigPage navigateTo={navigateTo} />;
+                    case 'game': return <GamePage config={gameConfig} navigateTo={navigateTo}/>;
+                    default: return <HomePage navigateTo={navigateTo} />;
+                }
+            };
+            
+            return (
+                <>
+                    <Header navigateTo={navigateTo} currentPage={page} />
+                    <main className="container py-4">
+                        <div className="fade-in">{renderPage()}</div>
+                    </main>
+                    <Footer />
+                </>
+            );
+        };
+        
+        // Header (invariato rispetto alla versione precedente)
+        const Header = ({ navigateTo, currentPage }) => {
+            const handleMobileNavClick = (page) => {
+                navigateTo(page);
+                const mobileNavEl = document.getElementById('mobileNav');
+                if (mobileNavEl) {
+                    const bsCollapse = bootstrap.Collapse.getInstance(mobileNavEl);
+                    if (bsCollapse && mobileNavEl.classList.contains('show')) {
+                        bsCollapse.hide();
+                    }
+                }
+            };
+            const navLinks = [
+                { page: 'home', label: 'Home', icon: 'fa-home' },
+                { page: 'list', label: 'Elenco Papi', icon: 'fa-list' },
+                { page: 'stats', label: 'Statistiche', icon: 'fa-chart-pie' },
+                { page: 'game-config', label: 'Minigioco', icon: 'fa-gamepad' }
+            ];
+
+            return (
+                <header className="header">
+                    <div className="container">
+                        <div className="d-flex justify-content-between align-items-center">
+                            <h1 className="page-title mb-0 vatican-gold" onClick={() => navigateTo('home')}>
+                                <i className="fas fa-landmark me-2"></i>
+                                Archivio Papale
+                            </h1>
+                            <nav className="d-none d-md-block">
+                                <ul className="nav">
+                                    {navLinks.map(link => (
+                                        <li key={link.page} className="nav-item mx-1">
+                                            <a 
+                                                className={`nav-link ${(currentPage === link.page || (link.page === 'game-config' && currentPage === 'game')) ? 'active' : ''}`} 
+                                                href="#" 
+                                                onClick={(e) => { e.preventDefault(); navigateTo(link.page); }}
+                                            >
+                                                <i className={`fas ${link.icon} me-1`}></i> {link.label}
+                                            </a>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </nav>
+                            <div className="d-block d-md-none">
+                                <button className="btn btn-sm btn-light" type="button" data-bs-toggle="collapse" data-bs-target="#mobileNav" aria-controls="mobileNav" aria-expanded="false" aria-label="Toggle navigation">
+                                    <i className="fas fa-bars vatican-red"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="collapse" id="mobileNav">
+                        <div className="bg-dark py-2">
+                            <div className="container">
+                                <ul className="nav flex-column">
+                                    {navLinks.map(link => (
+                                         <li key={link.page + "-mobile"} className="nav-item">
+                                            <a 
+                                                className="nav-link text-white" 
+                                                href="#" 
+                                                onClick={(e) => { e.preventDefault(); handleMobileNavClick(link.page);}}
+                                            >
+                                                <i className={`fas ${link.icon} me-2`}></i>{link.label}
+                                            </a>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+            );
+        };
+        
+        // Footer (invariato)
+        const Footer = () => (
+            <footer className="footer text-center">
+                <p className="mb-1">&copy; {new Date().getFullYear()} Bootstrap.</p>
+                <p className="mb-0"><small>Liceo ginnasio statale Giambattista Vico 2024/2025 3E.</small></p>
+            </footer>
+        );
+
+        // HomePage (invariato)
+        const HomePage = ({ navigateTo }) => (
+            <div className="text-center p-md-5">
+                <i className="fas fa-church fa-4x vatican-red mb-4"></i>
+                <h2 className="display-4 mb-3 vatican-red">Benvenuti</h2>
+                <p className="lead mb-5" style={{fontSize: '1.3rem'}}>
+                    Esplorate la millenaria storia dei Pontefici della Chiesa Cattolica.
+                </p>
+                <div className="row justify-content-center">
+                    <div className="col-md-3 mb-3">
+                        <div className="card h-100 shadow-sm">
+                            <div className="card-body d-flex flex-column align-items-center justify-content-center py-4">
+                                <i className="fas fa-list-ol fa-3x vatican-red mb-3"></i>
+                                <h5 className="card-title">Elenco Papi</h5>
+                                <button className="btn btn-vatican mt-3 stretched-link" onClick={() => navigateTo('list')}>Consulta</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="col-md-3 mb-3">
+                        <div className="card h-100 shadow-sm">
+                            <div className="card-body d-flex flex-column align-items-center justify-content-center py-4">
+                                <i className="fas fa-chart-bar fa-3x vatican-red mb-3"></i>
+                                <h5 className="card-title">Statistiche</h5>
+                                <button className="btn btn-vatican mt-3 stretched-link" onClick={() => navigateTo('stats')}>Analizza</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="col-md-3 mb-3">
+                         <div className="card h-100 shadow-sm">
+                            <div className="card-body d-flex flex-column align-items-center justify-content-center py-4">
+                                <i className="fas fa-gamepad fa-3x vatican-gold mb-3F"></i>
+                                <h5 className="card-title">Minigioco</h5>
+                                <button className="btn btn-gold mt-3 stretched-link" onClick={() => navigateTo('game-config')}>Gioca</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // PopeListPage (invariato, con paginazione base)
+        const PopeListPage = ({ navigateTo }) => {
+            const [searchTerm, setSearchTerm] = useState('');
+            const [currentPage, setCurrentPage] = useState(1);
+            const itemsPerPage = 20;
+
+            const filteredPopes = popeData.filter(pope =>
+                pope.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                pope.nazionalita.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                pope.periodo.includes(searchTerm)
+            ).sort((a,b) => b.id - a.id); // Ordina per ID decrescente (più recenti prima)
+
+
+            const indexOfLastItem = currentPage * itemsPerPage;
+            const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+            const currentPopes = filteredPopes.slice(indexOfFirstItem, indexOfLastItem);
+            const totalPages = Math.ceil(filteredPopes.length / itemsPerPage);
+            
+            const renderPageNumbers = () => {
+                const pageNumbers = [];
+                const maxPagesToShow = 5;
+                let startPage, endPage;
+
+                if (totalPages <= maxPagesToShow) {
+                    startPage = 1;
+                    endPage = totalPages;
+                } else {
+                    if (currentPage <= Math.ceil(maxPagesToShow / 2) ) {
+                        startPage = 1;
+                        endPage = maxPagesToShow;
+                    } else if (currentPage + Math.floor(maxPagesToShow / 2) >= totalPages) {
+                        startPage = totalPages - maxPagesToShow + 1;
+                        endPage = totalPages;
+                    } else {
+                        startPage = currentPage - Math.floor(maxPagesToShow / 2);
+                        endPage = currentPage + Math.floor(maxPagesToShow / 2);
+                    }
+                }
+
+                for (let i = startPage; i <= endPage; i++) {
+                    pageNumbers.push(
+                        <li key={i} className={`page-item ${currentPage === i ? 'active' : ''}`}>
+                            <button className="page-link" onClick={() => setCurrentPage(i)}>{i}</button>
+                        </li>
+                    );
+                }
+                 if (startPage > 1) {
+                    pageNumbers.unshift(<li key="startEllipsis" className="page-item disabled"><span className="page-link">...</span></li>);
+                    pageNumbers.unshift(<li key={1} className={`page-item ${currentPage === 1 ? 'active' : ''}`}><button className="page-link" onClick={() => setCurrentPage(1)}>1</button></li>);
+                }
+                if (endPage < totalPages) {
+                    pageNumbers.push(<li key="endEllipsis" className="page-item disabled"><span className="page-link">...</span></li>);
+                    pageNumbers.push(<li key={totalPages} className={`page-item ${currentPage === totalPages ? 'active' : ''}`}><button className="page-link" onClick={() => setCurrentPage(totalPages)}>{totalPages}</button></li>);
+                }
+                return pageNumbers;
+            };
+
+
+            return (
+                <div>
+                    <h2 className="mb-4 vatican-red"><i className="fas fa-list-ol me-2"></i>Elenco Completo dei Papi</h2>
+                    <input
+                        type="text"
+                        className="form-control mb-3"
+                        placeholder="Cerca per nome, nazionalità, periodo..."
+                        value={searchTerm}
+                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    />
+                    {filteredPopes.length === 0 && <p>Nessun risultato per "{searchTerm}"</p>}
+                    <div className="table-responsive">
+                        <table className="table table-hover align-middle">
+                            <thead>
+                                <tr><th>#</th><th>Nome</th><th>Nazionalità</th><th>Periodo</th></tr>
+                            </thead>
+                            <tbody>
+                                {currentPopes.map(pope => (
+                                    <tr key={pope.id}>
+                                        <td>{pope.id}</td>
+                                        <td>{pope.nome}</td>
+                                        <td>{pope.nazionalita}</td>
+                                        <td>{pope.periodo}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {totalPages > 1 && (
+                        <nav aria-label="Paginazione elenco papi">
+                            <ul className="pagination justify-content-center">
+                                <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                                    <button className="page-link" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}>Precedente</button>
+                                </li>
+                                {renderPageNumbers()}
+                                <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                                    <button className="page-link" onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}>Successivo</button>
+                                </li>
+                            </ul>
+                        </nav>
+                    )}
+                </div>
+            );
+        };
+
+        // StatsPage - SEMPLIFICATA CON LISTA DI NAZIONALITÀ E PERCENTUALI
+        const StatsPage = ({ navigateTo }) => {
+            const totalPopesOverall = popeData.length;
+
+            // Calcolo durata pontificato (gestisce "presente")
+            const getPontificateLength = (period) => {
+                if (!period || typeof period !== 'string' || !period.includes('-')) return 0;
+                const parts = period.split('-');
+                const startYear = parseInt(parts[0]);
+                let endYear;
+                if (parts[1].toLowerCase().trim() === 'presente') {
+                    endYear = new Date().getFullYear();
+                } else {
+                    endYear = parseInt(parts[1]);
+                }
+                if (isNaN(startYear) || isNaN(endYear) || endYear < startYear) return 0;
+                return endYear - startYear + 1;
+            };
+
+            // Calcolo statistiche nazionalità
+            const nationalitiesCounts = _.countBy(popeData, 'nazionalita');
+            const nationalitiesStats = _(nationalitiesCounts)
+                .map((count, nationality) => ({
+                    nationality,
+                    count,
+                    percentage: totalPopesOverall > 0 ? (count / totalPopesOverall) * 100 : 0
+                }))
+                .orderBy(['percentage'], ['desc']) // Ordina per percentuale decrescente
+                .value();
+
+            // Altre statistiche generali
+            const validPontificates = popeData.filter(p => getPontificateLength(p.periodo) > 0);
+            const averagePontificateLength = validPontificates.length > 0 ? (_.sumBy(validPontificates, p => getPontificateLength(p.periodo)) / validPontificates.length).toFixed(1) : "N/A";
+            const longestPontificate = validPontificates.length > 0 ? _.maxBy(validPontificates, p => getPontificateLength(p.periodo)) : null;
+            
+            return (
+                <div>
+                    <h2 className="mb-4 vatican-red"><i className="fas fa-chart-bar me-2"></i>Statistiche Papali</h2>
+                    
+                    {/* Card Statistiche Generali */}
+                    <div className="row mb-4">
+                        <div className="col-md-4 mb-3">
+                            <div className="card text-center h-100">
+                                <div className="card-body">
+                                    <i className="fas fa-users fa-2x mb-2 vatican-red"></i>
+                                    <h5 className="card-title">Papi Totali</h5>
+                                    <p className="stat-number">{totalPopesOverall}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="col-md-4 mb-3">
+                            <div className="card text-center h-100">
+                                <div className="card-body">
+                                    <i className="fas fa-clock fa-2x mb-2 vatican-red"></i>
+                                    <h5 className="card-title">Pontificato Medio</h5>
+                                    <p className="stat-number">{averagePontificateLength} anni</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="col-md-4 mb-3">
+                            <div className="card text-center h-100">
+                                <div className="card-body">
+                                    <i className="fas fa-crown fa-2x mb-2 vatican-red"></i>
+                                    <h5 className="card-title">Pontificato più Lungo</h5>
+                                    {longestPontificate && 
+                                        <>
+                                            <p className="h5 vatican-red mb-0" style={{fontSize: '1.1rem'}}>{longestPontificate.nome}</p>
+                                            <small>({getPontificateLength(longestPontificate.periodo)} anni: {longestPontificate.periodo})</small>
+                                        </>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Card Lista Nazionalità */}
+                    <div className="card">
+                        <div className="card-header">
+                            <i className="fas fa-globe-americas me-2"></i>Distribuzione Papi per Nazionalità
+                        </div>
+                        <div className="card-body">
+                            {nationalitiesStats.length > 0 ? (
+                                <ul className="list-unstyled">
+                                    {nationalitiesStats.map(stat => (
+                                        <li key={stat.nationality} className="nationality-list-item">
+                                            <span className="nationality-name">{stat.nationality}</span>
+                                            <span className="nationality-details">
+                                                {stat.count} Papi ({stat.percentage.toFixed(1)}%)
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p>Nessun dato sulla nazionalità disponibile.</p>
+                            )}
+                        </div>
+                         <div className="card-footer text-muted small">
+                            Le percentuali sono calcolate sul totale di {totalPopesOverall} papi.
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        // GameConfigPage (Semplificata)
+        const GameConfigPage = ({ navigateTo }) => {
+            const [numQuestions, setNumQuestions] = useState(5);
+             const startGame = () => {
+                navigateTo('game', { numQuestions: parseInt(numQuestions) || 5, difficulty: 'medium' });
+            };
+            return (
+                <div className="card">
+                    <div className="card-header"><i className="fas fa-cogs me-2"></i>Configura Minigioco</div>
+                    <div className="card-body text-center">
+                        <div className="mb-3 mx-auto" style={{maxWidth: "200px"}}>
+                            <label htmlFor="numQ" className="form-label">Numero Domande:</label>
+                            <input type="number" id="numQ" className="form-control text-center" value={numQuestions} onChange={e => setNumQuestions(e.target.value)} min="3" max="10"/>
+                        </div>
+                        <button className="btn btn-vatican btn-lg" onClick={startGame}>
+                            <i className="fas fa-play me-2"></i>Inizia Gioco
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // GamePage (Semplificata)
+        const GamePage = ({ navigateTo, config }) => {
+            const { numQuestions = 5, difficulty = 'medium' } = config || {};
+            const [questions, setQuestions] = useState([]);
+            const [currentQIndex, setCurrentQIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [showResult, setShowResult] = useState(false);
+            const [selectedOpt, setSelectedOpt] = useState(null);
+
+            useEffect(() => {
+                // Semplice generazione domande (da migliorare per la logica delle opzioni)
+                const gameQuestions = _.sampleSize(popeData.filter(p => p.periodo && !p.periodo.includes("presente")), numQuestions).map(pope => {
+                    const correctAnswer = pope.nazionalita;
+                    let options = new Set([correctAnswer]);
+                    while(options.size < 4) {
+                        options.add(popeData[_.random(popeData.length -1)].nazionalita);
+                    }
+                    return {
+                        text: `Qual era la nazionalità di ${pope.nome}?`,
+                        answer: correctAnswer,
+                        options: _.shuffle(Array.from(options))
+                    };
+                });
+                setQuestions(gameQuestions);
+            }, [numQuestions]);
+
+            if (questions.length === 0) return (
+                <div className="loading">
+                    <div className="spinner-border vatican-red" role="status"></div> <p className="ms-2">Caricamento gioco...</p>
+                </div>
+            );
+
+            const currentQuestion = questions[currentQIndex];
+
+            const handleAnswer = (option) => {
+                setSelectedOpt(option);
+                setShowResult(true);
+                if(option === currentQuestion.answer) setScore(s => s + 1);
+            };
+
+            const handleNext = () => {
+                setShowResult(false);
+                setSelectedOpt(null);
+                if (currentQIndex < questions.length - 1) {
+                    setCurrentQIndex(q => q + 1);
+                } else {
+                    alert(`Gioco Finito! Punteggio: ${score}/${questions.length}`);
+                    navigateTo('game-config');
+                }
+            };
+            
+            return (
+                 <div className="card">
+                    <div className="card-header">Domanda {currentQIndex + 1} / {questions.length} <span className="float-end">Punteggio: {score}</span></div>
+                    <div className="card-body text-center">
+                        <h4 className="mb-4">{currentQuestion.text}</h4>
+                        <div className="d-grid gap-2 col-md-6 mx-auto">
+                            {currentQuestion.options.map(opt => (
+                                <button 
+                                    key={opt} 
+                                    className={`btn btn-lg ${showResult ? (opt === currentQuestion.answer ? 'btn-success' : (opt === selectedOpt ? 'btn-danger' : 'btn-outline-secondary')) : 'btn-gold'}`}
+                                    onClick={() => !showResult && handleAnswer(opt)}
+                                    disabled={showResult && opt !== selectedOpt && opt !== currentQuestion.answer}
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+                        {showResult && (
+                            <div className="mt-4">
+                                {selectedOpt === currentQuestion.answer ? 
+                                    <p className="text-success fw-bold">Corretto!</p> :
+                                    <p className="text-danger fw-bold">Sbagliato! La risposta era: {currentQuestion.answer}</p>
+                                }
+                                <button className="btn btn-vatican" onClick={handleNext}>
+                                    {currentQIndex < questions.length - 1 ? 'Prossima Domanda' : 'Fine Gioco'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Monta l'app React
+        const root = ReactDOM.createRoot(document.getElementById('app'));
+        root.render(<App />);
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
